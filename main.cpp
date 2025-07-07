@@ -7,47 +7,6 @@
 
 #include "PatternSearch.h";
 
-typedef struct shellcodeStack {
-//         [tag]                     [rbx+ Value]
-
-    DWORD64 DosHeader;                  // 0x00
-    DWORD64 ImportDescriptor;           // 0x08
-    DWORD64 OriginalFuncAddr;           // 0x10
-    DWORD64 FirstThunk;                 // 0x18
-    DWORD64 OriginalFirstThunk;         // 0x20
-    DWORD64 oldProtect;                 // 0x28
-    DWORD64 VirtualProtectAddr;         // 0x30
-    DWORD64 OGreturnAddr;               // 0x38
-    DWORD64 hCreateFileW;               // 0x40
-    DWORD64 hWriteFile;                 // 0x48
-    DWORD64 pMSG;                       // 0x50
-    DWORD64 hKernel32;                  // 0x58
-    DWORD64 ExportedFuncNum;            // 0x60
-    DWORD64 ExportedFunctionsTable;     // 0x68
-    DWORD64 addressOfNamePointer;       // 0x70
-    DWORD64 addressOfOrdinalTable;      // 0x78
-    DWORD64 hGetProcAddress;            // 0x80
-    DWORD64 firstReturnAddr;            // 0x88
-    DWORD64 bytesWritten;               // 0x90
-    DWORD64 AsciiValue;                 // 0x98
-    //burdan sonrasý deneysel alan
-    DWORD64 hLoadLibraryA;//0xA0
-    //deneysel alan bitiþi string sahasý
-    char USER32String[11];              // 0x100
-    char GetMessageWString[12];         // 0x110 buraya faklý biþey gelebilir hooklanacak fonk bu ondan 0x20(32) bayt fazlasý var
-    char VirtualProtectString[15];      // 0x130
-    char KERNEL32String[13];            // 0x140
-    char CreateFileWString[13];         // 0x150
-    char WriteFileString[10];           // 0x160
-    char LoadLibraryAString[12];        // 0x170
-    char GetProcAddressString[15];      // 0x180
-    char PipeNameString[1];             // 0x190
-    //ekstralar
-    byte isSyscallHook;                 // 0x1E0
-    DWORD SyscallNum;                   // 0x1E2
-                                        // 0x1E8
-};
-
 
 typedef NTSTATUS(WINAPI* PNtQuerySystemInformation)(
     SYSTEM_INFORMATION_CLASS SystemInformationClass,
@@ -125,7 +84,7 @@ DWORD FindProcessId(const std::wstring& processName) {
 unsigned char* GetShell32Addr(DWORD pid) {
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, pid);
     if (snapshot == INVALID_HANDLE_VALUE) {
-        std::cerr << "Snapshot alýnamadý: " << GetLastError() << "\n";
+        std::cerr << "Snapshot alÃ½namadÃ½: " << GetLastError() << "\n";
         return 0x0000000000000000;
     }
 
@@ -133,7 +92,7 @@ unsigned char* GetShell32Addr(DWORD pid) {
     if (Module32First(snapshot, &me32)) {
         do {
             if (_wcsicmp(me32.szModule, L"SHELL32.dll") == 0) {
-                std::wcout << L"Modül: " << me32.szModule
+                std::wcout << L"ModÃ¼l: " << me32.szModule
                     << L" | Base: " << me32.modBaseAddr
                     << L" | Size: " << me32.modBaseSize << L"\n";
                 return me32.modBaseAddr;
@@ -141,7 +100,7 @@ unsigned char* GetShell32Addr(DWORD pid) {
         } while (Module32Next(snapshot, &me32));
     }
     else {
-        std::cerr << "Module32First baþarýsýz: " << GetLastError() << "\n";
+        std::cerr << "Module32First baÃ¾arÃ½sÃ½z: " << GetLastError() << "\n";
     }
 
     CloseHandle(snapshot);
@@ -149,7 +108,7 @@ unsigned char* GetShell32Addr(DWORD pid) {
     return 0x0000000000000000;
 }
 
-//debug bayra aktif edilebilir belki byte deðiþtirmek için
+//debug bayra aktif edilebilir belki byte deÃ°iÃ¾tirmek iÃ§in
 BOOL patchIsSigningActiveFunc(unsigned long offset, bool testSigningFlag) {
     
     unsigned char* patch;
@@ -189,7 +148,7 @@ BOOL patchIsSigningActiveFunc(unsigned long offset, bool testSigningFlag) {
         return -1;
     }
 
-    LPVOID targetAddress = (LPVOID)patchAddr; // örnek adres
+    LPVOID targetAddress = (LPVOID)patchAddr; // Ã¶rnek adres
     std::cout << "target address: " << targetAddress << "\n";
 
     DWORD oldProtect;
@@ -198,16 +157,16 @@ BOOL patchIsSigningActiveFunc(unsigned long offset, bool testSigningFlag) {
         return 0;
     }
 
-    // Belleðe yaz
+    // BelleÃ°e yaz
     if (!WriteProcessMemory(hProcess, targetAddress, patch, patchBuffer, nullptr)) {
         std::cerr << "WriteProcessMemory failed: " << GetLastError() << "\n";
         return 0;
     }
     else {
-        std::cout << "Patch baþarýyla yazýldý.\n";
+        std::cout << "Patch baÃ¾arÃ½yla yazÃ½ldÃ½.\n";
     }
 
-    // Koruma geri alýnýr
+    // Koruma geri alÃ½nÃ½r
     VirtualProtectEx(hProcess, targetAddress, patchBuffer, oldProtect, &oldProtect);
 
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
@@ -225,11 +184,11 @@ void changeTestSigning(bool testSigningFlag) {
     HMODULE hModule = LoadLibraryA(shell32path);
 
     if (!hModule) {
-        std::cerr << "Modül bulunamadý: " << shell32path << "\n";
+        std::cerr << "ModÃ¼l bulunamadÃ½: " << shell32path << "\n";
         return;
     }
 
-    // PE header üzerinden boyutu öðreniyoruz
+    // PE header Ã¼zerinden boyutu Ã¶Ã°reniyoruz
     auto base = reinterpret_cast<BYTE*>(hModule);
     auto dosHeader = reinterpret_cast<IMAGE_DOS_HEADER*>(base);
     auto ntHeaders = reinterpret_cast<IMAGE_NT_HEADERS*>(base + dosHeader->e_lfanew);
